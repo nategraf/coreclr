@@ -56,9 +56,9 @@ The profiling API is used by a profiler DLL, loaded into the same process as the
 
 Note that only the data-gathering part of the profiler solution should be running in-process with the profiled application—UI and data analysis should be done in a separate process.
 
-![Profiling Process Overview]: images/profiling-overview.png
+![Profiling Process Overview](../images/profiling-overview.png)
 
-The _ICorProfilerCallback_ and _ICorProfilerCallback2 _interfaces consists of methods with names like ClassLoadStarted, ClassLoadFinished, JITCompilationStarted. Each time the CLR loads/unloads a class, compiles a function, etc., it calls the corresponding method in the profiler's _ICorProfilerCallback/ICorProfilerCallback2_ interface.  (And similarly for all of the other notifications; see later for details)
+The _ICorProfilerCallback_ and _ICorProfilerCallback2_ interfaces consists of methods with names like ClassLoadStarted, ClassLoadFinished, JITCompilationStarted. Each time the CLR loads/unloads a class, compiles a function, etc., it calls the corresponding method in the profiler's _ICorProfilerCallback/ICorProfilerCallback2_ interface.  (And similarly for all of the other notifications; see later for details)
 
 So, for example, a profiler could measure code performance via the two notifications FunctionEnter and FunctionLeave.  It simply timestamps each notification, accumulates results, then outputs a list indicating which functions consumed the most cpu time, or most wall-clock time, during execution of the application.
 
@@ -74,17 +74,17 @@ The picture so far describes what happens once the application and profiler are 
 	- set Cor\_Proflier="MyProfiler"
 - The profiler class is the one that implements _ICorProfilerCallback/ICorProfilerCallback2_. It is required that a profiler implement ICorProfilerCallback2; if it does not, it will not be loaded.
 
-When both checks above pass, the CLR creates an instance of the profiler in a similar fashion to _CoCreateInstance_.  The profiler is not loaded through a direct call to _CoCreateInstance_ so that a call to _CoInitialize_ may be avoided, which requires setting the threading model.  It then calls the _ICorProfilerCallback::Initialize_ method in the profiler.  The signature of this method is:
+When all three checks above pass, the CLR creates an instance of the profiler in a similar fashion to _CoCreateInstance_.  The profiler is not loaded through a direct call to _CoCreateInstance_ so that a call to _CoInitialize_ may be avoided, which requires setting the threading model.  It then calls the _ICorProfilerCallback::Initialize_ method in the profiler.  The signature of this method is:
 
-	HRESULT Initialize(IUnknown \*pICorProfilerInfoUnk)
+	HRESULT Initialize(IUnknown *pICorProfilerInfoUnk)
 
 The profiler must QueryInterface pICorProfilerInfoUnk for an _ICorProfilerInfo_ interface pointer and save it so that it can call for more info during later profiling.  It then calls ICorProfilerInfo::SetEventMask to say which categories of notifications it is interested in.  For example:
 
-	ICorProfilerInfo\* pInfo;
+	ICorProfilerInfo* pInfo;
 
-	pICorProfilerInfoUnk->QueryInterface(IID\_ICorProfilerInfo, (void\*\*)&pInfo);
+	pICorProfilerInfoUnk->QueryInterface(IID_ICorProfilerInfo, (void**)&pInfo);
 
-	pInfo->SetEventMask(COR\_PRF\_MONITOR\_ENTERLEAVE | COR\_PRF\_MONITOR\_GC)
+	pInfo->SetEventMask(COR_PRF_MONITOR_ENTERLEAVE | COR_PRF_MONITOR_GC)
 
 This mask would be used for a profiler interested only in function enter/leave notifications and garbage collection notifications.  The profiler then simply returns, and is off and running!
 
@@ -146,9 +146,9 @@ Assembly, Module, Class, Function, and GCHandleIDs have app-domain affinity, mea
 
 All IDs except ObjectID should be treated as opaque values. Most IDs are fairly self-explanatory. A few are worth explaining in more detail:
 
-**ClassIDs** represent classes. In the case of generic classes, they represent fully-instantiated types. List<int>, List<char>, List<object>, and List<string> each have their own ClassID. List<T> is an uninstantiated type, and has no ClassID. Dictionary<string,V> is a partially-instantiated type, and has no ClassID.
+**ClassIDs** represent classes. In the case of generic classes, they represent fully-instantiated types. List\<int\>, List\<char\>, List\<object\>, and List\<string\> each have their own ClassID. List\<T\> is an uninstantiated type, and has no ClassID. Dictionary\<string,V\> is a partially-instantiated type, and has no ClassID.
 
-**FunctionIDs** represent native code for a function. In the case of generic functions (or functions on generic classes), there may be multiple native code instantiations for a given function, and thus multiple FunctionIDs. Native code instantiations may be shared between different types — for example List<string> and List<object> share all code—so a FunctionID may "belong" to more than one ClassID.
+**FunctionIDs** represent native code for a function. In the case of generic functions (or functions on generic classes), there may be multiple native code instantiations for a given function, and thus multiple FunctionIDs. Native code instantiations may be shared between different types — for example List\<string\> and List\<object\> share all code—so a FunctionID may "belong" to more than one ClassID.
 
 **ObjectIDs** represent garbage-collected objects. An ObjectID is the current address of the object at the time the ObjectID is received by the profiler, and may change with each garbage collection. Thus, an ObjectID value is only valid between the time it is received and when the next garbage collection begins.  The CLR also supplies notifications that allow a profiler to update its internal maps that track objects, so that a profiler may maintain a valid ObjectID across garbage collections.
 
@@ -166,10 +166,10 @@ Caller-Allocated Buffers
 
 ICorProfilerInfo functions that take caller-allocated buffers typically conform to the following signature:
 
-	HRESULT GetBuffer( [in] /\* Some query information \*/,
+	HRESULT GetBuffer( [in] /* Some query information */,
 	   [in] ULONG32 cBuffer,
-	   [out] ULONG32 \*pcBuffer,
-	   [out, size\_is(cBuffer), length\_is(\*pcMap)] /\* TYPE \*/ buffer[] );
+	   [out] ULONG32 *pcBuffer,
+	   [out, size_is(cBuffer), length_is(*pcMap)] /* TYPE */ buffer[] );
 
 These functions will always behave as follows:
 
@@ -189,7 +189,7 @@ All [out] parameters on the API are optional, unless a function has only one [ou
 Notification Thread
 -------------------
 
-In most cases, the notifications are executed by the same thread as generated the event.  Such notifications (for example, FunctionEnter and FunctionLeave_)_ don't need to supply the explicit ThreadID.  Also, the profiler might choose to use thread-local storage to store and update its analysis blocks, as compared with indexing into global storage, based off the ThreadID of the affected thread.
+In most cases, the notifications are executed by the same thread as generated the event.  Such notifications (for example, FunctionEnter and FunctionLeave) don't need to supply the explicit ThreadID.  Also, the profiler might choose to use thread-local storage to store and update its analysis blocks, as compared with indexing into global storage, based off the ThreadID of the affected thread.
 
 Each notification documents which thread does the call – either the thread which generated the event or some utility thread (e.g. garbage collector) within the Runtime.  For any callback that might be invoked by a different thread, a user can call the _ICorProfilerInfo::GetCurrentThreadID_ to discover the thread that generated the event.
 
