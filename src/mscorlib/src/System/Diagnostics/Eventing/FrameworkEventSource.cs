@@ -28,7 +28,7 @@ namespace System.Diagnostics.Tracing
     // This will produce an XML file, where each event is pretty-printed with all its arguments nicely parsed.
     //
     [FriendAccessAllowed]
-    [EventSource(Guid = "8E9F5090-2D75-4d03-8A81-E5AFBF85DAF1", Name = "System.Diagnostics.Eventing.FrameworkEventSource")]
+    [EventSource(Name = "System.Diagnostics.Eventing.FrameworkEventSource")]
     sealed internal class FrameworkEventSource : EventSource
     {
         // Defines the singleton instance for the Resources ETW provider
