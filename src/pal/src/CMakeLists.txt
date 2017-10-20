@@ -376,9 +376,7 @@ endif(CMAKE_SYSTEM_NAME STREQUAL NetBSD)
 
 add_subdirectory(examples)
 
-if(FEATURE_EVENT_TRACE)
-    add_subdirectory($ENV{__IntermediatesDir}/Generated/eventprovider ${CMAKE_CURRENT_BINARY_DIR}/eventprovider)
-endif(FEATURE_EVENT_TRACE)
+add_subdirectory(${GENERATED_EVENTPROV_DIR})
 
 # Install the static PAL library for VS
 install (TARGETS coreclrpal DESTINATION lib)

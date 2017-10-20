@@ -6,7 +6,7 @@
 #
 #USAGE:
 #Add Events: modify <root>src/vm/ClrEtwAll.man
-#Look at the Code in  <root>/src/scripts/genXplatLttng.py for using subroutines in this file
+#Look at the Code in  <root>/src/scripts/genLttngInterface.py for using subroutines in this file
 #
 
 # Python 2 compatibility
@@ -595,7 +595,6 @@ def generateSanityTest(sClrEtwAllMan,testDir):
              )
         if(CLR_CMAKE_PLATFORM_LINUX)
             list(APPEND EVENT_PROVIDER_DEPENDENCIES
-                 coreclrtraceptprovider
                  )
         endif(CLR_CMAKE_PLATFORM_LINUX)
         list(APPEND EVENT_PROVIDER_LINKER_OTPTIONS

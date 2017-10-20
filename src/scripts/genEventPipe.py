@@ -1,6 +1,6 @@
 ﻿from __future__ import print_function
 from genXplatEventing import *
-from genXplatLttng import *
+from genLttngInterface import *
 import os
 import xml.dom.minidom as DOM
 

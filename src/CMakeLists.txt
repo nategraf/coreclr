@@ -14,44 +14,21 @@ include_directories("${GENERATED_INCLUDE_DIR}")
 # ClrEtwAll.man                  - Event Schema
 # ClrEtwAllMeta.lst              - MetaData list [provided to ensure Windows Desktop is not broken]
 # genXplatEventing.py            - has the core logic for parsing Event Schema
-# genWinEtw.py                   - Uses genXplatEventing to generate Windows Specific ETW Files
+# genDummyEtm.py                 - Uses genXplatEventing to generate Windows Specific ETW Files
 # clretwallmain.h and etmdummy.h - Provides the Event Logging Functionality to the VM
 # clrxplatevents.h               - Used by clretwallmain.h on Non Windows platform
 # ClrEtwAll.h                    - Used by clretwallmain.h on  Windows 
 # ClrEtwAll.rc                   - Used by src/dlls/clretwrc/clretrw.rc on Windows
 
+set (GENERATED_EVENTPIPE_DIR ${GENERATED_EVENTING_DIR}/eventpipe)
+set (GENERATED_EVENTPROV_DIR ${GENERATED_EVENTING_DIR}/eventprovider)
+
 set (ScriptGeneratedEventFiles
       ${GENERATED_INCLUDE_DIR}/clretwallmain.h
       ${GENERATED_INCLUDE_DIR}/etmdummy.h
+      ${GENERATED_INCLUDE_DIR}/clrxplatevents.h
 )
 set (GeneratedEventFiles)
-
-if(WIN32)
-    set (GenEventFilesScript "${CLR_DIR}/src/scripts/genWinEtw.py")
-    set (GenEventArgs --eventheader "${GENERATED_INCLUDE_DIR}/ClrEtwAll.h" --macroheader "${GENERATED_INCLUDE_DIR}/clretwallmain.h")
-
-    list (APPEND ScriptGeneratedEventFiles
-          ${GENERATED_INCLUDE_DIR}/ClrEtwAll.h
-    )
-
-    list (APPEND GeneratedEventFiles
-         ${GENERATED_INCLUDE_DIR}/ClrEtwAll.rc
-    )
-
-    add_custom_command(
-      COMMENT "Generating ETW resource Files"
-      COMMAND ${MC} -h ${GENERATED_INCLUDE_DIR} -r ${GENERATED_INCLUDE_DIR} -b -co -um -p FireEtw "${VM_DIR}/ClrEtwAll.man"
-      OUTPUT ${GENERATED_INCLUDE_DIR}/ClrEtwAll.h
-      DEPENDS "${VM_DIR}/ClrEtwAll.man"
-    )
-else()
-    set (GenEventFilesScript "${CLR_DIR}/src/scripts/genXplatEventing.py")
-    set (GenEventArgs   --inc  "${GENERATED_INCLUDE_DIR}")
-
-    list (APPEND ScriptGeneratedEventFiles
-          ${GENERATED_INCLUDE_DIR}/clrxplatevents.h
-    )
-endif(WIN32)
 
 if(CLR_CMAKE_WARNINGS_ARE_ERRORS)
     set(PYTHON_WARNING_FLAGS -Wall -Werror)
@@ -59,15 +36,70 @@ else()
     set(PYTHON_WARNING_FLAGS -Wall)
 endif(CLR_CMAKE_WARNINGS_ARE_ERRORS)
 
+#echo "Laying out dynamically generated files consumed by the build system "
+#echo "Laying out dynamically generated Event Logging Test files"
+#$PYTHON -B $__PythonWarningFlags "$__ProjectRoot/src/scripts/genXplatEventing.py" --man "$__ProjectRoot/src/vm/ClrEtwAll.man" --exc "$__ProjectRoot/src/vm/ClrEtwAllMeta.lst" --testdir "$__GeneratedIntermediateEventProvider/tests"
+#
+#if  [[ $? != 0 ]]; then
+#    exit
+#fi
+#
+#echo "Laying out dynamically generated EventPipe Implementation"
+#$PYTHON -B $__PythonWarningFlags "$__ProjectRoot/src/scripts/genEventPipe.py" --man "$__ProjectRoot/src/vm/ClrEtwAll.man" --intermediate "$__GeneratedIntermediateEventPipe" --exc "$__ProjectRoot/src/vm/ClrEtwAllMeta.lst"
+#
+##determine the logging system
+#case $__BuildOS in
+#    Linux|FreeBSD)
+#        echo "Laying out dynamically generated Event Logging Implementation of Lttng"
+#        $PYTHON -B $__PythonWarningFlags "$__ProjectRoot/src/scripts/genLttngInterface.py" --man "$__ProjectRoot/src/vm/ClrEtwAll.man" --intermediate "$__GeneratedIntermediateEventProvider"
+#        if  [[ $? != 0 ]]; then
+#            exit
+#        fi
+#        ;;
+#    *)
+#        echo "Laying out dummy event logging provider"
+#        $PYTHON -B $__PythonWarningFlags "$__ProjectRoot/src/scripts/genDummyInterface.py" --man "$__ProjectRoot/src/vm/ClrEtwAll.man" --intermediate "$__GeneratedIntermediateEventProvider"
+#        if  [[ $? != 0 ]]; then
+#            exit
+#        fi
+#        ;;
+#esac
+
+file(REMOVE_RECURSE ${GENERATED_EVENTPIPE_DIR} ${GENERATED_EVENTPROV_DIR})
+
+if(CLR_CMAKE_PLATFORM_LINUX OR CLR_CMAKE_PLATFORM_FREEBSD)
+#  set(EVENTPROV_NAME LTTng)
+#  set(EVENTPROV_INTERFACE_GEN ${CLR_DIR}/src/scripts/genLttngInterface.py)
+#else()
+  set(EVENTPROV_NAME Dummy)
+  set(EVENTPROV_INTERFACE_GEN ${CLR_DIR}/src/scripts/genDummyInterface.py)
+endif(CLR_CMAKE_PLATFORM_LINUX OR CLR_CMAKE_PLATFORM_FREEBSD)
+
 add_custom_command(
   COMMENT "Generating Eventing Files"
-  COMMAND ${PYTHON} -B ${PYTHON_WARNING_FLAGS} ${GenEventFilesScript} ${GenEventArgs} --man "${VM_DIR}/ClrEtwAll.man" --exc "${VM_DIR}/ClrEtwAllMeta.lst" --dummy "${GENERATED_INCLUDE_DIR}/etmdummy.h"
+  COMMAND ${PYTHON} -B ${PYTHON_WARNING_FLAGS} "${CLR_DIR}/src/scripts/genXplatEventing.py" --inc "${GENERATED_INCLUDE_DIR}" --man "${VM_DIR}/ClrEtwAll.man" --exc "${VM_DIR}/ClrEtwAllMeta.lst" --dummy "${GENERATED_INCLUDE_DIR}/etmdummy.h" --testdir "${GENERATED_EVENTPROV_DIR}/tests"
   OUTPUT ${ScriptGeneratedEventFiles}
-  DEPENDS ${GenEventFilesScript} "${VM_DIR}/ClrEtwAll.man" "${VM_DIR}/ClrEtwAllMeta.lst" "${CLR_DIR}/src/scripts/genXplatEventing.py"
+  DEPENDS "${VM_DIR}/ClrEtwAll.man" "${VM_DIR}/ClrEtwAllMeta.lst" "${CLR_DIR}/src/scripts/genXplatEventing.py"
+)
+
+add_custom_command(
+  COMMENT "Generating EventPipe Implementation"
+  COMMAND ${PYTHON} -B ${PYTHON_WARNING_FLAGS} "${CLR_DIR}/src/scripts/genEventPipe.py" --intermediate "${GENERATED_EVENTPIPE_DIR}" --man "${VM_DIR}/ClrEtwAll.man" --exc "${VM_DIR}/ClrEtwAllMeta.lst"
+  OUTPUT ${GENERATED_EVENTPIPE_DIR}
+  DEPENDS "${VM_DIR}/ClrEtwAll.man" "${VM_DIR}/ClrEtwAllMeta.lst" "${CLR_DIR}/src/scripts/genEventPipe.py"
+)
+
+add_custom_command(
+  COMMENT "Generating ${EVENTPROV_NAME} Event Proviver Interface Implementation"
+  COMMAND ${PYTHON} -B ${PYTHON_WARNING_FLAGS} ${EVENTPROV_INTERFACE_GEN} --intermediate "${GENERATED_EVENTPIPE_DIR}" --man "${VM_DIR}/ClrEtwAll.man"
+  OUTPUT ${GENERATED_EVENTPROV_DIR}
+  DEPENDS "${VM_DIR}/ClrEtwAll.man" "${VM_DIR}/ClrEtwAllMeta.lst" ${EVENTPROV_INTERFACE_GEN}
 )
 
 list (APPEND GeneratedEventFiles
       ${ScriptGeneratedEventFiles}
+      ${GENERATED_EVENTPIPE_DIR}
+      ${GENERATED_EVENTPROV_DIR}
 )
 
 add_custom_target(

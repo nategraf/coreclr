@@ -184,90 +184,6 @@ restore_optdata()
     fi
 }
 
-generate_event_logging_sources()
-{
-    if [ $__SkipCoreCLR == 1 ]; then
-        return
-    fi
-
-# Event Logging Infrastructure
-   __GeneratedIntermediate="$__IntermediatesDir/Generated"
-   __GeneratedIntermediateEventProvider="$__GeneratedIntermediate/eventprovider_new"
-   __GeneratedIntermediateEventPipe="$__GeneratedIntermediate/eventpipe_new"
-
-    if [[ -d "$__GeneratedIntermediateEventProvider" ]]; then
-        rm -rf  "$__GeneratedIntermediateEventProvider"
-    fi
-
-    if [[ -d "$__GeneratedIntermediateEventPipe" ]]; then
-        rm -rf  "$__GeneratedIntermediateEventPipe"
-    fi
-
-    if [[ ! -d "$__GeneratedIntermediate/eventprovider" ]]; then
-        mkdir -p "$__GeneratedIntermediate/eventprovider"
-    fi
-
-    if [[ ! -d "$__GeneratedIntermediate/eventpipe" ]]; then
-        mkdir -p "$__GeneratedIntermediate/eventpipe"
-    fi
-
-    mkdir -p "$__GeneratedIntermediateEventProvider"
-    mkdir -p "$__GeneratedIntermediateEventPipe"
-
-    __PythonWarningFlags="-Wall"
-    if [[ $__IgnoreWarnings == 0 ]]; then
-        __PythonWarningFlags="$__PythonWarningFlags -Werror"
-    fi
-
-
-    if [[ $__SkipCoreCLR == 0 || $__ConfigureOnly == 1 ]]; then
-        echo "Laying out dynamically generated files consumed by the build system "
-        echo "Laying out dynamically generated Event Logging Test files"
-        $PYTHON -B $__PythonWarningFlags "$__ProjectRoot/src/scripts/genXplatEventing.py" --man "$__ProjectRoot/src/vm/ClrEtwAll.man" --exc "$__ProjectRoot/src/vm/ClrEtwAllMeta.lst" --testdir "$__GeneratedIntermediateEventProvider/tests"
-
-        if  [[ $? != 0 ]]; then
-            exit
-        fi
-
-        echo "Laying out dynamically generated EventPipe Implementation"
-        $PYTHON -B $__PythonWarningFlags "$__ProjectRoot/src/scripts/genEventPipe.py" --man "$__ProjectRoot/src/vm/ClrEtwAll.man" --intermediate "$__GeneratedIntermediateEventPipe" --exc "$__ProjectRoot/src/vm/ClrEtwAllMeta.lst"
-
-        #determine the logging system
-        case $__BuildOS in
-            Linux|FreeBSD)
-                echo "Laying out dynamically generated Event Logging Implementation of Lttng"
-                $PYTHON -B $__PythonWarningFlags "$__ProjectRoot/src/scripts/genXplatLttng.py" --man "$__ProjectRoot/src/vm/ClrEtwAll.man" --intermediate "$__GeneratedIntermediateEventProvider"
-                if  [[ $? != 0 ]]; then
-                    exit
-                fi
-                ;;
-            *)
-                echo "Laying out dummy event logging provider"
-                $PYTHON -B $__PythonWarningFlags "$__ProjectRoot/src/scripts/genXplatDummy.py" --man "$__ProjectRoot/src/vm/ClrEtwAll.man" --intermediate "$__GeneratedIntermediateEventProvider"
-                if  [[ $? != 0 ]]; then
-                    exit
-                fi
-                ;;
-        esac
-    fi
-
-    echo "Cleaning the temp folder of dynamically generated Event Logging files"
-    $PYTHON -B $__PythonWarningFlags -c "import sys;sys.path.insert(0,\"$__ProjectRoot/src/scripts\"); from Utilities import *;UpdateDirectory(\"$__GeneratedIntermediate/eventprovider\",\"$__GeneratedIntermediateEventProvider\")"
-    if  [[ $? != 0 ]]; then
-        exit
-    fi
-
-    rm -rf "$__GeneratedIntermediateEventProvider"
-
-    echo "Cleaning the temp folder of dynamically generated EventPipe files"
-    $PYTHON -B $__PythonWarningFlags -c "import sys;sys.path.insert(0,\"$__ProjectRoot/src/scripts\"); from Utilities import *;UpdateDirectory(\"$__GeneratedIntermediate/eventpipe\",\"$__GeneratedIntermediateEventPipe\")"
-    if  [[ $? != 0 ]]; then
-        exit
-    fi
-
-    rm -rf "$__GeneratedIntermediateEventPipe"
-}
-
 build_native()
 {
     skipCondition=$1
@@ -970,9 +886,6 @@ check_prereqs
 
 # Restore the package containing profile counts for profile-guided optimizations
 restore_optdata
-
-# Generate event logging infrastructure sources
-generate_event_logging_sources
 
 # Build the coreclr (native) components.
 __ExtraCmakeArgs="-DCLR_CMAKE_TARGET_OS=$__BuildOS -DCLR_CMAKE_PACKAGES_DIR=$__PackagesDir -DCLR_CMAKE_PGO_INSTRUMENT=$__PgoInstrument -DCLR_CMAKE_OPTDATA_VERSION=$__PgoOptDataVersion -DCLR_CMAKE_PGO_OPTIMIZE=$__PgoOptimize"

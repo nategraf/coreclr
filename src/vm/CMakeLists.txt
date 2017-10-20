@@ -533,7 +533,3 @@ convert_to_absolute_path(VM_SOURCES_DAC ${VM_SOURCES_DAC})
 
 add_subdirectory(dac)
 add_subdirectory(wks)
-
-if(CLR_CMAKE_PLATFORM_LINUX)
-    add_subdirectory($ENV{__IntermediatesDir}/Generated/eventpipe ${CMAKE_CURRENT_BINARY_DIR}/eventpipe)
-endif(CLR_CMAKE_PLATFORM_LINUX)
