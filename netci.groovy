@@ -35,6 +35,10 @@ def static getOSGroup(def os) {
 // We use this class (vs variables) so that the static functions can access data here.
 class Constants {
 
+    // We have very limited ARM64 hardware (used for ARM/ARMLB/ARM64 testing). So only allow certain branches to use it.
+    def static WindowsArm64Branches = [
+               'master']
+
     // Innerloop build OS's
     // The Windows_NT_BuildOnly OS is a way to speed up the Non-NT builds temporarily by avoiding
     // test execution in the build flow runs.  It generates the exact same build
@@ -135,9 +139,9 @@ class Constants {
                'jitdiff',
                'standalone_gc',
                'gc_reliability_framework',
-               'illink'] + r2rStressScenarios.keySet()
+               'illink']
 
-    def static allScenarios = basicScenarios + jitStressModeScenarios.keySet()
+    def static allScenarios = basicScenarios + r2rStressScenarios.keySet() + jitStressModeScenarios.keySet()
 
     // A set of scenarios that are valid for arm/arm64/armlb tests run on hardware. This is a map from valid scenario name
     // to Tests.lst file categories to exclude.
@@ -150,7 +154,7 @@ class Constants {
     def static validArmWindowsScenarios = [
                'default':                                [],
                // 'ilrt'
-               // 'r2r':                                    ["R2R_FAIL"],
+               'r2r':                                    ["R2R_FAIL"],
                // 'longgc'
                // 'formatting'
                // 'gcsimulator'
@@ -158,19 +162,19 @@ class Constants {
                // 'standalone_gc'
                // 'gc_reliability_framework'
                // 'illink'
-               // 'r2r_jitstress1'
-               // 'r2r_jitstress2'
-               // 'r2r_jitstressregs1'
-               // 'r2r_jitstressregs2'
-               // 'r2r_jitstressregs3'
-               // 'r2r_jitstressregs4'
-               // 'r2r_jitstressregs8'
-               // 'r2r_jitstressregs0x10'
-               // 'r2r_jitstressregs0x80'
-               // 'r2r_jitstressregs0x1000'
-               // 'r2r_jitminopts'
-               // 'r2r_jitforcerelocs'
-               // 'r2r_gcstress15'
+               'r2r_jitstress1':                         ["R2R_FAIL", "JITSTRESS_FAIL", "JITSTRESS_EXCLUDE"],
+               'r2r_jitstress2':                         ["R2R_FAIL", "JITSTRESS_FAIL", "JITSTRESS_EXCLUDE"],
+               'r2r_jitstressregs1':                     ["R2R_FAIL", "JITSTRESS_FAIL", "JITSTRESS_EXCLUDE"],
+               'r2r_jitstressregs2':                     ["R2R_FAIL", "JITSTRESS_FAIL", "JITSTRESS_EXCLUDE"],
+               'r2r_jitstressregs3':                     ["R2R_FAIL", "JITSTRESS_FAIL", "JITSTRESS_EXCLUDE"],
+               'r2r_jitstressregs4':                     ["R2R_FAIL", "JITSTRESS_FAIL", "JITSTRESS_EXCLUDE"],
+               'r2r_jitstressregs8':                     ["R2R_FAIL", "JITSTRESS_FAIL", "JITSTRESS_EXCLUDE"],
+               'r2r_jitstressregs0x10':                  ["R2R_FAIL", "JITSTRESS_FAIL", "JITSTRESS_EXCLUDE"],
+               'r2r_jitstressregs0x80':                  ["R2R_FAIL", "JITSTRESS_FAIL", "JITSTRESS_EXCLUDE"],
+               'r2r_jitstressregs0x1000':                ["R2R_FAIL", "JITSTRESS_FAIL", "JITSTRESS_EXCLUDE"],
+               'r2r_jitminopts':                         ["R2R_FAIL", "JITSTRESS_FAIL", "JITSTRESS_EXCLUDE"],
+               'r2r_jitforcerelocs':                     ["R2R_FAIL", "JITSTRESS_FAIL", "JITSTRESS_EXCLUDE"],
+               'r2r_gcstress15':                         ["R2R_FAIL", "JITSTRESS_FAIL", "JITSTRESS_EXCLUDE"],
                'minopts':                                ["MINOPTS_FAIL", "MINOPTS_EXCLUDE"],
                'tieredcompilation':                      [],
                'forcerelocs':                            [],
@@ -386,37 +390,50 @@ def static isArmWindowsScenario(def scenario) {
     return Constants.validArmWindowsScenarios.containsKey(scenario)
 }
 
-def static setTestJobTimeOut(newJob, isPR, architecture, scenario) {
+def static setTestJobTimeOut(newJob, isPR, architecture, configuration, scenario) {
+    // 2 hours (120 minutes) is the default timeout
+    def timeout = 120
+
     if (isGCStressRelatedTesting(scenario)) {
-        Utilities.setJobTimeout(newJob, 4320)
+        timeout = 4320
     }
     else if (isCoreFxScenario(scenario)) {
-        Utilities.setJobTimeout(newJob, 360)
+        timeout = 360
     }
     else if (isJitStressScenario(scenario)) {
-        Utilities.setJobTimeout(newJob, 240)
+        timeout = 240
     }
     else if (isR2RBaselineScenario(scenario)) {
-        Utilities.setJobTimeout(newJob, 240)
+        timeout = 240
     }
     else if (isLongGc(scenario)) {
-        Utilities.setJobTimeout(newJob, 1440)
+        timeout = 1440
     }
     else if (isJitDiff(scenario)) {
-        Utilities.setJobTimeout(newJob, 240)
+        timeout = 240
     }
     else if (isGcReliabilityFramework(scenario)) {
-        Utilities.setJobTimeout(newJob, 1440)
+        timeout = 1440
     }
     else if (architecture == 'arm' || architecture == 'armlb' || architecture == 'arm64') {
-        Utilities.setJobTimeout(newJob, 240)
+        timeout = 240
     }
     else if (!(scenario == 'default' && isPR == true)) {
         // Pri-1 test builds take a long time. Default PR jobs are Pri-0; everything else is Pri-1
         // (see calculateBuildCommands()). So up the Pri-1 build jobs timeout.
-        Utilities.setJobTimeout(newJob, 240)
+        timeout = 240
     }
-    // Non-test jobs use the default timeout value.
+
+    if (configuration == 'Debug') {
+        // Debug runs can be very slow. Add an hour.
+        timeout += 60
+    }
+
+    // If we've changed the timeout from the default, set it in the job.
+
+    if (timeout != 120) {
+        Utilities.setJobTimeout(newJob, timeout)
+    }
 }
 
 def static getJobFolder(def scenario) {
@@ -458,24 +475,39 @@ def static getR2RDisplayName(def scenario) {
     return displayStr
 }
 
-// Generates the string for creating a file that sets environment variables
-// that makes it possible to run stress modes.  Writes the script to the file
-// specified by the stepScriptLocation parameter.
-def static genStressModeScriptStep(def os, def stressModeName, def stressModeVars, def stepScriptLocation) {
+//
+// Functions to create an environment script.
+//      envScriptCreate -- initialize the script (call first)
+//      envScriptFinalize -- finalize the script (call last)
+//      envScriptSetStressModeVariables -- set stress mode variables in the env script
+//      envScriptAppendExistingScript -- append an existing script to the generated script
+//
+// Each script returns a string of commands. Concatenate all the strings together before
+// adding them to the builds commands, to make sure they get executed as one Jenkins script.
+//
+
+// Initialize the environment setting script.
+def static envScriptCreate(def os, def stepScriptLocation) {
     def stepScript = ''
     if (os == 'Windows_NT') {
-        // Timeout in ms, default is 10 minutes. For stress modes up this to 30 minutes.
-        // BUG?: it seems this is ignored, as this script will be run in an environment where
-        //       environment variables will be discarded before this is used.
-        def timeout = 1800000
-        stepScript += "set __TestTimeout=${timeout}\r\n"
-
-        stepScript += "echo Creating TestEnv Script for ${stressModeName}\r\n"
+        stepScript += "echo Creating TestEnv script\r\n"
         stepScript += "if exist ${stepScriptLocation} del ${stepScriptLocation}\r\n"
 
         // Create at least an empty script.
         stepScript += "echo. > ${stepScriptLocation}\r\n"
+    }
+    else {
+        stepScript += "echo Creating environment setting script\n"
+        stepScript += "echo \\#\\!/usr/bin/env bash > ${stepScriptLocation}\n"
+    }
 
+    return stepScript
+}
+
+// Generates the string for setting stress mode variables.
+def static envScriptSetStressModeVariables(def os, def stressModeVars, def stepScriptLocation) {
+    def stepScript = ''
+    if (os == 'Windows_NT') {
         stressModeVars.each{ k, v ->
             // Write out what we are writing to the script file
             stepScript += "echo Setting ${k}=${v}\r\n"
@@ -484,31 +516,42 @@ def static genStressModeScriptStep(def os, def stressModeName, def stressModeVar
         }
     }
     else {
-        stepScript += "echo Setting variables for ${stressModeName}\n"
-        stepScript += "echo \\#\\!/usr/bin/env bash > ${stepScriptLocation}\n"
         stressModeVars.each{ k, v ->
             // Write out what we are writing to the script file
             stepScript += "echo Setting ${k}=${v}\n"
             // Write out the set itself to the script file`
             stepScript += "echo export ${k}=${v} >> ${stepScriptLocation}\n"
         }
-        stepScript += "chmod +x ${stepScriptLocation}\n"
     }
 
     return stepScript
 }
 
-// Append an existing script to a stress mode script already created by genStressModeScriptStep().
+// Append an existing script to an environment script.
 // Returns string of commands to do this.
-def static appendStressModeScriptStep(def os, def appendScript, def stepScriptLocation) {
+def static envScriptAppendExistingScript(def os, def appendScript, def stepScriptLocation) {
     assert (os == 'Windows_NT')
     def stepScript = ''
+
     stepScript += "echo Appending ${appendScript} to ${stepScriptLocation}\r\n"
     stepScript += "type ${appendScript} >> ${stepScriptLocation}\r\n"
 
-    // Display the resulting script. This is useful when looking at the output log file.
-    stepScript += "echo Display the total script ${stepScriptLocation}\r\n"
-    stepScript += "type ${stepScriptLocation}\r\n"
+    return stepScript
+}
+
+// Finalize an environment setting script.
+// Returns string of commands to do this.
+def static envScriptFinalize(def os, def stepScriptLocation) {
+    def stepScript = ''
+
+    if (os == 'Windows_NT') {
+        // Display the resulting script. This is useful when looking at the output log file.
+        stepScript += "echo Display the total script ${stepScriptLocation}\r\n"
+        stepScript += "type ${stepScriptLocation}\r\n"
+    }
+    else {
+        stepScript += "chmod +x ${stepScriptLocation}\n"
+    }
 
     return stepScript
 }
@@ -596,9 +639,6 @@ def static getJobName(def configuration, def architecture, def os, def scenario,
             }
             break
         case 'arm':
-            baseName = architecture.toLowerCase() + '_cross_' + configuration.toLowerCase() + '_' + os.toLowerCase()
-            break
-        case 'armlb':
             // These are cross builds
             if (os == 'Tizen') {
                 // ABI: softfp
@@ -607,6 +647,9 @@ def static getJobName(def configuration, def architecture, def os, def scenario,
             else {
                 baseName = architecture.toLowerCase() + '_cross_' + configuration.toLowerCase() + '_' + os.toLowerCase()
             }
+            break
+        case 'armlb':
+            baseName = architecture.toLowerCase() + '_cross_' + configuration.toLowerCase() + '_' + os.toLowerCase()
             break
         case 'x86':
         case 'x86_arm_altjit':
@@ -623,6 +666,15 @@ def static getJobName(def configuration, def architecture, def os, def scenario,
 }
 
 def static addNonPRTriggers(def job, def branch, def isPR, def architecture, def os, def configuration, def scenario, def isFlowJob, def isWindowsBuildOnlyJob, def bidailyCrossList) {
+
+    // Limited Windows ARM64 hardware is restricted for non-PR triggers to certain branches.
+    if (os == 'Windows_NT') {
+        if ((architecture == 'arm64') || (architecture == 'arm') || (architecture == 'armlb')) {
+            if (!(branch in Constants.WindowsArm64Branches)) {
+                return
+            }
+        }
+    }
 
     // Check scenario.
     switch (scenario) {
@@ -1138,42 +1190,43 @@ def static addTriggers(def job, def branch, def isPR, def architecture, def os, 
             switch (os) {
                 case 'Ubuntu':
                 case 'Ubuntu16.04':
-                    if (architecture == 'armlb') { // Ubuntu arm is only for armlb currently
-                        assert scenario == 'default'
-                        job.with {
-                            publishers {
-                                azureVMAgentPostBuildAction {
-                                    agentPostBuildAction('Delete agent if the build was not successful (when idle).')
-                                }
+                    if (architecture == 'armlb') { // No arm legacy backend testing for Ubuntu
+                        break
+                    }
+                    assert scenario == 'default'
+                    job.with {
+                        publishers {
+                            azureVMAgentPostBuildAction {
+                                agentPostBuildAction('Delete agent if the build was not successful (when idle).')
                             }
                         }
-                        if ((os == 'Ubuntu' && configuration == 'Debug') || (os == 'Ubuntu16.04' && configuration == 'Debug')) {
-                            Utilities.addGithubPRTriggerForBranch(job, branch, "${os} ${architecture} Cross ${configuration} Innerloop Build")
-                        }
-                        else {
-                            Utilities.addGithubPRTriggerForBranch(job, branch, "${os} ${architecture} Cross ${configuration} Build",
+                    }
+                    if (configuration == 'Debug') {
+                        Utilities.addGithubPRTriggerForBranch(job, branch, "${os} ${architecture} Cross ${configuration} Innerloop Build")
+                    }
+                    else {
+                        Utilities.addGithubPRTriggerForBranch(job, branch, "${os} ${architecture} Cross ${configuration} Build",
                             "(?i).*test\\W+${os}\\W+${architecture}\\W+Cross\\W+${configuration}\\W+Build.*")
-                        }
                     }
                     break
                 case 'Tizen':
-                    if (architecture == 'armlb') { // Tizen armel is only for armlb currently
-                        architecture='armel'
-                        job.with {
-                            publishers {
-                                azureVMAgentPostBuildAction {
-                                    agentPostBuildAction('Delete agent if the build was not successful (when idle).')
-                                }
+                    if (architecture == 'armlb') {  // No arm legacy backend testing for Tizen armel
+                        break
+                    }
+                    architecture='armel'
+                    job.with {
+                        publishers {
+                            azureVMAgentPostBuildAction {
+                                agentPostBuildAction('Delete agent if the build was not successful (when idle).')
                             }
                         }
-                        // Removing the regex will cause this to run on each PR.
-                        if (configuration == 'Checked') {
-                            Utilities.addGithubPRTriggerForBranch(job, branch, "${os} ${architecture} Cross ${configuration} Innerloop Build and Test")
-                        }
-                        else {
-                            Utilities.addGithubPRTriggerForBranch(job, branch, "${os} ${architecture} Cross ${configuration} Build",
+                    }
+                    if (configuration == 'Checked') {
+                        Utilities.addGithubPRTriggerForBranch(job, branch, "${os} ${architecture} Cross ${configuration} Innerloop Build and Test")
+                    }
+                    else {
+                        Utilities.addGithubPRTriggerForBranch(job, branch, "${os} ${architecture} Cross ${configuration} Build",
                             "(?i).*test\\W+${os}\\W+${architecture}\\W+Cross\\W+${configuration}\\W+Build.*")
-                        }
                     }
                     break
                 case 'Windows_NT':
@@ -1478,46 +1531,6 @@ def static calculateBuildCommands(def newJob, def scenario, def branch, def isPR
                             }
 
                             testOpts += ' runcrossgentests'
-
-                            if (scenario == 'r2r_jitstress1') {
-                                testOpts += ' jitstress 1'
-                            }
-                            else if (scenario == 'r2r_jitstress2') {
-                                testOpts += ' jitstress 2'
-                            }
-                            else if (scenario == 'r2r_jitstressregs1') {
-                                testOpts += ' jitstressregs 1'
-                            }
-                            else if (scenario == 'r2r_jitstressregs2') {
-                                testOpts += ' jitstressregs 2'
-                            }
-                            else if (scenario == 'r2r_jitstressregs3') {
-                                testOpts += ' jitstressregs 3'
-                            }
-                            else if (scenario == 'r2r_jitstressregs4') {
-                                testOpts += ' jitstressregs 4'
-                            }
-                            else if (scenario == 'r2r_jitstressregs8') {
-                                testOpts += ' jitstressregs 8'
-                            }
-                            else if (scenario == 'r2r_jitstressregs0x10') {
-                                testOpts += ' jitstressregs 0x10'
-                            }
-                            else if (scenario == 'r2r_jitstressregs0x80') {
-                                testOpts += ' jitstressregs 0x80'
-                            }
-                            else if (scenario == 'r2r_jitstressregs0x1000') {
-                                testOpts += ' jitstressregs 0x1000'
-                            }
-                            else if (scenario == 'r2r_jitminopts') {
-                                testOpts += ' jitminopts'
-                            }
-                            else if (scenario == 'r2r_jitforcerelocs') {
-                                testOpts += ' jitforcerelocs'
-                            }
-                            else if (scenario == 'r2r_gcstress15') {
-                                testOpts += ' gcstresslevel 0xF'
-                            }
                         }
                         else if (scenario == 'jitdiff') {
                             testOpts += ' jitdisasm crossgen'
@@ -1535,20 +1548,40 @@ def static calculateBuildCommands(def newJob, def scenario, def branch, def isPR
                             testOpts += " link %WORKSPACE%\\linker\\linker\\bin\\netcore_Release\\netcoreapp2.0\\win10-${arch}\\publish\\illink.exe"
                         }
 
+                        // Default per-test timeout is 10 minutes. For stress modes and Debug scenarios, increase this
+                        // to 30 minutes (30 * 60 * 1000 = 180000). The "timeout" argument to runtest.cmd sets this, by
+                        // taking a timeout value in milliseconds. (Note that it sets the __TestTimeout environment variable,
+                        // which is read by the xunit harness.)
+                        if (isJitStressScenario(scenario) || isR2RStressScenario(scenario) || (lowerConfiguration == 'debug'))
+                        {
+                            def timeout = 1800000
+                            testOpts += " timeout ${timeout}"
+                        }
+
                         // If we are running a stress mode, we should write out the set of key
                         // value env pairs to a file at this point and then we'll pass that to runtest.cmd
 
                         def envScriptPath = ''
-                        if (isJitStressScenario(scenario)) {
+                        if (isJitStressScenario(scenario) || isR2RStressScenario(scenario)) {
                             def buildCommandsStr = ''
                             envScriptPath = "%WORKSPACE%\\SetStressModes.bat"
-                            buildCommandsStr += genStressModeScriptStep(os, scenario, Constants.jitStressModeScenarios[scenario], envScriptPath)
+                            buildCommandsStr += envScriptCreate(os, envScriptPath)
+
+                            if (isJitStressScenario(scenario)) {
+                                buildCommandsStr += envScriptSetStressModeVariables(os, Constants.jitStressModeScenarios[scenario], envScriptPath)
+                            }
+                            else if (isR2RStressScenario(scenario)) {
+                                buildCommandsStr += envScriptSetStressModeVariables(os, Constants.r2rStressScenarios[scenario], envScriptPath)
+                            }
+
                             if (architecture == 'x86_arm_altjit') {
-                                buildCommandsStr += appendStressModeScriptStep(os, "%WORKSPACE%\\tests\\x86_arm_altjit.cmd", envScriptPath)
+                                buildCommandsStr += envScriptAppendExistingScript(os, "%WORKSPACE%\\tests\\x86_arm_altjit.cmd", envScriptPath)
                             }
                             else if (architecture == 'x64_arm64_altjit') {
-                                buildCommandsStr += appendStressModeScriptStep(os, "%WORKSPACE%\\tests\\x64_arm64_altjit.cmd", envScriptPath)
+                                buildCommandsStr += envScriptAppendExistingScript(os, "%WORKSPACE%\\tests\\x64_arm64_altjit.cmd", envScriptPath)
                             }
+
+                            envScriptFinalize(os, envScriptPath)
 
                             // Note that buildCommands is an array of individually executed commands; we want all the commands used to 
                             // create the SetStressModes.bat script to be executed together, hence we accumulate them as strings
@@ -1573,7 +1606,7 @@ def static calculateBuildCommands(def newJob, def scenario, def branch, def isPR
 
                             buildCommands += "python -u %WORKSPACE%\\tests\\scripts\\run-corefx-tests.py -arch ${arch} -ci_arch ${architecture} -build_type ${configuration} -fx_root ${absoluteFxRoot} -fx_branch ${branch} -env_script ${envScriptPath}"
 
-                            setTestJobTimeOut(newJob, isPR, architecture, scenario)
+                            setTestJobTimeOut(newJob, isPR, architecture, configuration, scenario)
 
                             // Archive and process (only) the test results
                             Utilities.addArchival(newJob, "${workspaceRelativeFxRoot}/bin/**/testResults.xml")
@@ -1622,7 +1655,7 @@ def static calculateBuildCommands(def newJob, def scenario, def branch, def isPR
 
                         if (!isBuildOnly) {
                             Utilities.addXUnitDotNETResults(newJob, 'bin/**/TestRun*.xml', true)
-                            setTestJobTimeOut(newJob, isPR, architecture, scenario)
+                            setTestJobTimeOut(newJob, isPR, architecture, configuration, scenario)
                         }
                     }
                     break
@@ -1633,15 +1666,15 @@ def static calculateBuildCommands(def newJob, def scenario, def branch, def isPR
                     def machineAffinityOptions = ['use_arm64_build_machine' : true]
                     setMachineAffinity(newJob, os, architecture, machineAffinityOptions)
 
-                    setTestJobTimeOut(newJob, isPR, architecture, scenario)
+                    setTestJobTimeOut(newJob, isPR, architecture, configuration, scenario)
 
                     def buildArchitecture = 'arm'
 
-                    // For 'arm' (the RyuJIT/arm32 architecture), tell build.cmd to use RyuJIT/arm32 for crossgen compilation.
-                    // RyuJIT/arm32 is currently not the default JIT; it is an aljit. So, this is a special case.
+                    // For 'armlb' (the JIT LEGACY_BACKEND architecture for arm), tell build.cmd to use legacy backend for crossgen compilation.
+                    // Legacy backend is not the default JIT; it is an aljit. So, this is a special case.
                     def armCrossgenOpt = ''
-                    if (architecture == 'arm') {
-                        armCrossgenOpt = '-altjitcrossgen'
+                    if (architecture == 'armlb') {
+                        armCrossgenOpt = '-crossgenaltjit legacyjit.dll'
                     }
 
                     // Hack: build pri1 tests for arm/armlb/arm64 build job, until we have separate pri0 and pri1 builds for the flow job to use.
@@ -1663,7 +1696,7 @@ def static calculateBuildCommands(def newJob, def scenario, def branch, def isPR
                     def machineAffinityOptions = ['use_arm64_build_machine' : true]
                     setMachineAffinity(newJob, os, architecture, machineAffinityOptions)
                    
-                    setTestJobTimeOut(newJob, isPR, architecture, scenario)
+                    setTestJobTimeOut(newJob, isPR, architecture, configuration, scenario)
 
                     // Hack: build pri1 tests for arm/armlb/arm64 build job, until we have separate pri0 and pri1 builds for the flow job to use.
                     priority = '1'
@@ -1724,10 +1757,11 @@ def static calculateBuildCommands(def newJob, def scenario, def branch, def isPR
                         // only on supported OS platforms.
                         def bootstrapRid = Utilities.getBoostrapPublishRid(os)
                         def bootstrapRidEnv = bootstrapRid != null ? "__PUBLISH_RID=${bootstrapRid} " : ''
-                        buildCommands += "${bootstrapRidEnv}./build.sh verbose ${lowerConfiguration} ${architecture}" 
+
+                        buildCommands += "${bootstrapRidEnv}./build.sh verbose ${lowerConfiguration} ${architecture}"
                         buildCommands += "src/pal/tests/palsuite/runpaltests.sh \${WORKSPACE}/bin/obj/${osGroup}.${architecture}.${configuration} \${WORKSPACE}/bin/paltestout"
 
-                        setTestJobTimeOut(newJob, isPR, architecture, scenario)
+                        setTestJobTimeOut(newJob, isPR, architecture, configuration, scenario)
 
                         // Basic archiving of the build
                         Utilities.addArchival(newJob, "bin/Product/**,bin/obj/*/tests/**/*.dylib,bin/obj/*/tests/**/*.so", "bin/Product/**/.nuget/**")
@@ -1745,7 +1779,11 @@ def static calculateBuildCommands(def newJob, def scenario, def branch, def isPR
                         buildCommands += "./build.sh verbose ${lowerConfiguration} ${architecture}"
 
                         def scriptFileName = "\$WORKSPACE/set_stress_test_env.sh"
-                        buildCommands += genStressModeScriptStep(os, scenario, Constants.jitStressModeScenarios[scenario], scriptFileName)
+
+                        def envScriptCmds = envScriptCreate(os, scriptFileName)
+                        envScriptCmds += envScriptSetStressModeVariables(os, Constants.jitStressModeScenarios[scenario], scriptFileName)
+                        envScriptCmds += envScriptFinalize(os, scriptFileName)
+                        buildCommands += envScriptCmds
 
                         // Build and text corefx
                         def workspaceRelativeFxRoot = "_/fx"
@@ -1753,7 +1791,7 @@ def static calculateBuildCommands(def newJob, def scenario, def branch, def isPR
 
                         buildCommands += "python -u \$WORKSPACE/tests/scripts/run-corefx-tests.py -arch ${architecture} -ci_arch ${architecture} -build_type ${configuration} -fx_root ${absoluteFxRoot} -fx_branch ${branch} -env_script ${scriptFileName}"
 
-                        setTestJobTimeOut(newJob, isPR, architecture, scenario)
+                        setTestJobTimeOut(newJob, isPR, architecture, configuration, scenario)
 
                         // Archive and process (only) the test results
                         Utilities.addArchival(newJob, "${workspaceRelativeFxRoot}/bin/**/testResults.xml")
@@ -1770,12 +1808,12 @@ def static calculateBuildCommands(def newJob, def scenario, def branch, def isPR
                         buildCommands += "mkdir ./bin/Product/Linux.arm64.${configuration}/corefxNative"
                         buildCommands += "cp fx/bin/Linux.arm64.Release/native/* ./bin/Product/Linux.arm64.${configuration}/corefxNative"
 
-                        setTestJobTimeOut(newJob, isPR, architecture, scenario)
+                        setTestJobTimeOut(newJob, isPR, architecture, configuration, scenario)
                         // Basic archiving of the build
                         Utilities.addArchival(newJob, "bin/Product/**,bin/obj/*/tests/**/*.dylib,bin/obj/*/tests/**/*.so", "bin/Product/**/.nuget/**")
                     }
                     break
-                case 'armlb':
+                case 'arm':
                     // Cross builds for ARM runs on Ubuntu, Ubuntu16.04 and Tizen currently
                     assert (os == 'Ubuntu') || (os == 'Ubuntu16.04') || (os == 'Tizen')
 
@@ -1847,8 +1885,8 @@ Constants.allScenarios.each { scenario ->
                         os = 'Windows_NT'
                     }
 
-                    // Tizen is only supported for arm legacy_backend architecture
-                    if (os == 'Tizen' && architecture != 'armlb') {
+                    // Tizen is only supported for arm architecture
+                    if (os == 'Tizen' && architecture != 'arm') {
                         return
                     }
 
@@ -1864,12 +1902,12 @@ Constants.allScenarios.each { scenario ->
                                 return
                             }
                             break
-                        case 'armlb':
+                        case 'arm':
                             if ((os != 'Ubuntu') && (os != 'Ubuntu16.04') && (os != 'Tizen') && (os != 'Windows_NT')) {
                                 return
                             }
                             break
-                        case 'arm':
+                        case 'armlb':
                             if (os != 'Windows_NT') {
                                 return
                             }
@@ -1927,10 +1965,6 @@ Constants.allScenarios.each { scenario ->
                     }
                     else if (isR2RScenario(scenario)) {
                         if (os != 'Windows_NT') {
-                            return
-                        }
-                        // R2R test runs are not implemented for arm/armlb/arm64.
-                        if (architecture == 'arm' || architecture == 'armlb' || architecture == 'arm64') {
                             return
                         }
                         // Stress scenarios only run with Checked builds, not Release (they would work with Debug, but be slow).
@@ -2077,7 +2111,7 @@ Constants.allScenarios.each { scenario ->
                             }
                             else {
                                 // Setup corefx and Windows test binaries for Linux cross build for ubuntu-arm, ubuntu16.04-arm and tizen-armel
-                                if ( architecture == 'armlb' && ( os == 'Ubuntu' || os == 'Ubuntu16.04' || os == 'Tizen')) {
+                                if ( architecture == 'arm' && ( os == 'Ubuntu' || os == 'Ubuntu16.04' || os == 'Tizen')) {
                                     // Cross build for ubuntu-arm, ubuntu16.04-arm and tizen-armel
                                     // Define the Windows Tests and Corefx build job names
                                     def WindowTestsName = projectFolder + '/' +
@@ -2288,9 +2322,18 @@ Constants.allScenarios.each { scenario ->
                         inputWindowsTestBuildArch = "x64"
                     }
 
-                    def inputWindowTestsBuildName = projectFolder + '/' +
+                    def inputWindowTestsBuildName = ""
+
+                    if (isJitStressScenario(scenario)) {
+                        inputWindowTestsBuildName = projectFolder + '/' +
+                        Utilities.getFullJobName(project, getJobName(configuration, inputWindowsTestBuildArch, 'windows_nt', testBuildScenario, false), isPR)
+                    } else {
+                        inputWindowTestsBuildName = projectFolder + '/' +
                         Utilities.getFullJobName(project, getJobName(configuration, inputWindowsTestBuildArch, 'windows_nt', testBuildScenario, true), isPR)
 
+                    }
+
+                     
                     // Enable Server GC for Ubuntu PR builds
                     def serverGCString = ''
                     if (os == 'Ubuntu' && isPR) {
@@ -2407,7 +2450,7 @@ Constants.allScenarios.each { scenario ->
                             // Set up the copies
 
                             // Coreclr build containing the tests and mscorlib
-
+                            // pri1 jobs still need to copy windows_nt built tests
                             if (windowsArmJob != true) {
                                 copyArtifacts(inputWindowTestsBuildName) {
                                     excludePatterns('**/testResults.xml', '**/*.ni.dll')
@@ -2418,6 +2461,8 @@ Constants.allScenarios.each { scenario ->
                             }
 
                             // Coreclr build we are trying to test
+                            //
+                            //  ** NOTE ** This will, correctly, overwrite over the CORE_ROOT from the windows test archive
 
                             copyArtifacts(inputCoreCLRBuildName) {
                                 excludePatterns('**/testResults.xml', '**/*.ni.dll')
@@ -2433,32 +2478,6 @@ Constants.allScenarios.each { scenario ->
                             // because we do not have a unified runner
                             if (windowsArmJob != true) {
                                 def corefxFolder = Utilities.getFolderName('dotnet/corefx') + '/' + Utilities.getFolderName(branch)
-
-                                // Corefx components.  We now have full stack builds on all distros we test here, so we can copy straight from CoreFX jobs.
-                                def osJobName
-                                if (os == 'Ubuntu') {
-                                    osJobName = 'ubuntu14.04'
-                                }
-                                else if (architecture == 'x86') {
-                                    if (os == 'Ubuntu') {
-                                        // Linux/x86 corefx jobs does not build managed yet
-                                        // Clone linux/arm corefx managed packages and overwrite linux/x86 native
-                                        osJobName = "linux_arm_cross"
-                                    }
-                                }
-                                else {
-                                    osJobName = os.toLowerCase()
-                                }
-                                copyArtifacts("${corefxFolder}/${osJobName}_release") {
-                                    includePatterns('bin/build.tar.gz')
-                                    buildSelector {
-                                        latestSuccessful(true)
-                                    }
-                                }
-
-                                shell("mkdir ./bin/CoreFxBinDir")
-                                // Unpack the corefx binaries
-                                shell("tar -xf ./bin/build.tar.gz -C ./bin/CoreFxBinDir")
 
                                 // HACK -- Arm64 does not have corefx jobs yet.
                                 // Clone corefx and build the native packages overwriting the x64 packages.
@@ -2481,7 +2500,10 @@ Constants.allScenarios.each { scenario ->
                                 }
 
                                 // Unzip the tests first.  Exit with 0
-                                shell("unzip -q -o ./bin/tests/tests.zip -d ./bin/tests/Windows_NT.${architecture}.${configuration} || exit 0")
+                                shell("unzip -q -o ./bin/tests/tests.zip -d ./bin/tests/${osGroup}.${architecture}.${configuration} || exit 0")
+                                shell("rm -r ./bin/tests/${osGroup}.${architecture}.${configuration}/Tests/Core_Root || exit 0")
+
+                                shell("./build-test.sh ${architecture} ${configuration} generatelayoutonly")
 
                                 // Execute the tests
                                 def runDocker = isNeedDocker(architecture, os, false)
@@ -2497,8 +2519,10 @@ Constants.allScenarios.each { scenario ->
                                 def testEnvOpt = ""
                                 if (isJitStressScenario(scenario)) {
                                     def scriptFileName = "\$WORKSPACE/set_stress_test_env.sh"
-                                    def createScriptCmds = genStressModeScriptStep(os, scenario, Constants.jitStressModeScenarios[scenario], scriptFileName)
-                                    shell("${createScriptCmds}")
+                                    def envScriptCmds = envScriptCreate(os, scriptFileName)
+                                    envScriptCmds += envScriptSetStressModeVariables(os, Constants.jitStressModeScenarios[scenario], scriptFileName)
+                                    envScriptCmds += envScriptFinalize(os, scriptFileName)
+                                    shell("${envScriptCmds}")
                                     testEnvOpt = "--test-env=" + scriptFileName
                                 }
 
@@ -2507,12 +2531,10 @@ Constants.allScenarios.each { scenario ->
                                 }
 
                                 shell("""${dockerCmd}./tests/runtest.sh \\
-                --testRootDir=\"\${WORKSPACE}/bin/tests/Windows_NT.${architecture}.${configuration}\" \\
+                --testRootDir=\"\${WORKSPACE}/bin/tests/${osGroup}.${architecture}.${configuration}\" \\
+                --coreOverlayDir=\"\${WORKSPACE}/bin/tests/${osGroup}.${architecture}.${configuration}/Tests/Core_Root\" \\
                 --testNativeBinDir=\"\${WORKSPACE}/bin/obj/${osGroup}.${architecture}.${configuration}/tests\" \\
-                --coreClrBinDir=\"\${WORKSPACE}/bin/Product/${osGroup}.${architecture}.${configuration}\" \\
-                --mscorlibDir=\"\${WORKSPACE}/bin/Product/${osGroup}.${architecture}.${configuration}\" \\
-                --coreFxBinDir=\"\${WORKSPACE}/bin/CoreFxBinDir\" \\
-                --limitedDumpGeneration ${testEnvOpt} ${serverGCString} ${testOpts}""")
+                --copyNativeTestBin --limitedDumpGeneration ${testEnvOpt} ${serverGCString} ${testOpts}""")
 
                                 if (isGcReliabilityFramework(scenario)) {
                                     // runtest.sh doesn't actually execute the reliability framework - do it here.
@@ -2549,19 +2571,17 @@ Constants.allScenarios.each { scenario ->
                                 addEnvVariable("COMPlus_NoGuiOnAssert", "1")
                                 addEnvVariable("COMPlus_ContinueOnAssert", "0")
 
-                                // Arm(32) ryujit 
-                                if (architecture == "arm") {
-                                    // **This is an AltJit**
-
+                                // ARM legacy backend; this is an altjit.
+                                if (architecture == "armlb") {
                                     addEnvVariable("COMPlus_AltJit", "*")
                                     addEnvVariable("COMPlus_AltJitNgen", "*")
-                                    addEnvVariable("COMPlus_AltJitName", "protojit.dll")
+                                    addEnvVariable("COMPlus_AltJitName", "legacyjit.dll")
                                     addEnvVariable("COMPlus_AltJitAssertOnNYI", "1")
                                 }
 
                                 // If we are running a stress mode, we'll set those variables as well
-                                def stressValues = null
                                 if (isJitStressScenario(scenario) || isR2RStressScenario(scenario)) {
+                                    def stressValues = null
                                     if (isJitStressScenario(scenario)) {
                                         stressValues = Constants.jitStressModeScenarios[scenario]
                                     }
@@ -2574,18 +2594,46 @@ Constants.allScenarios.each { scenario ->
                                     }
                                 }
 
-                                // TODO: do whatever is necessary to support enabling R2R testing. Environment variables,
-                                // crossgen the framework assemblies, etc.
+                                if (isR2RScenario(scenario)) {
+                                    // Crossgen the framework assemblies.
+                                    buildCommands += """
+@for %%F in (%CORE_ROOT%\\*.dll) do @call :PrecompileAssembly "%CORE_ROOT%" "%%F" %%~nxF
+@goto skip_PrecompileAssembly
+
+:PrecompileAssembly
+@REM Skip mscorlib since it is already precompiled.
+@if /I "%3" == "mscorlib.dll" exit /b 0
+@if /I "%3" == "mscorlib.ni.dll" exit /b 0
+
+"%CORE_ROOT%\\crossgen.exe" /Platform_Assemblies_Paths "%CORE_ROOT%" %2 >nul 2>nul
+@if "%errorlevel%" == "-2146230517" (
+    echo %2 is not a managed assembly.
+) else if "%errorlevel%" == "-2146234344" (
+    echo %2 is not a managed assembly.
+) else if %errorlevel% neq 0 (
+    echo Unable to precompile %2
+) else (
+    echo Precompiled %2
+)
+@exit /b 0
+
+:skip_PrecompileAssembly
+"""
+
+                                    // Set RunCrossGen variable to cause test wrappers to invoke their logic to run
+                                    // crossgen on tests before running them.
+                                    addEnvVariable("RunCrossGen", "true")
+                                }
 
                                 // Create the smarty command
                                 def smartyCommand = "C:\\Tools\\Smarty.exe /noecid /noie /workers 9 /inc EXPECTED_PASS "
                                 def addSmartyFlag = { flag -> smartyCommand += flag + " "}
                                 def addExclude = { exclude -> addSmartyFlag("/exc " + exclude)}
 
-                                def addArchSpecificExclude = { architectureToExclude, exclude -> if (architectureToExclude == "arm") { addExclude("PROTOJIT_" + exclude) } else { addExclude(exclude) } }
+                                def addArchSpecificExclude = { architectureToExclude, exclude -> if (architectureToExclude == "armlb") { addExclude("LEGACYJIT_" + exclude) } else { addExclude(exclude) } }
 
-                                if (architecture == "arm") {
-                                    addExclude("PROTOJIT_FAIL")
+                                if (architecture == "armlb") {
+                                    addExclude("LEGACYJIT_FAIL")
                                 }
 
                                 if (isJitStressScenario(scenario) || isR2RStressScenario(scenario)) {
@@ -2673,7 +2721,7 @@ Constants.allScenarios.each { scenario ->
                     setMachineAffinity(newJob, os, architecture, affinityOptions)
                     Utilities.standardJobSetup(newJob, project, isPR, "*/${branch}")
 
-                    setTestJobTimeOut(newJob, isPR, architecture, scenario)
+                    setTestJobTimeOut(newJob, isPR, architecture, configuration, scenario)
 
                     if (windowsArmJob != true) {
                         Utilities.addXUnitDotNETResults(newJob, '**/coreclrtests.xml')
@@ -2702,8 +2750,9 @@ Constants.allScenarios.each { scenario ->
                         // Do not create the flow job for RHEL jobs.
                         return
                     }
-
-                    if (windowsArmJob == true) {
+                    
+                    // For pri0 jobs we can build tests on unix
+                    if (windowsArmJob) {
                         // For Windows arm jobs there is no reason to build a parallel test job.
                         // The product build supports building and archiving the tests.
 
