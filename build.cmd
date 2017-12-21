@@ -28,7 +28,7 @@ set __ThisScriptDir="%~dp0"
 if defined VisualStudioVersion (
     if not defined __VSVersion echo %__MsgPrefix%Detected Visual Studio %VisualStudioVersion% developer command ^prompt environment
     goto :Run
-)
+) 
 
 echo %__MsgPrefix%Searching ^for Visual Studio 2017 or 2015 installation
 set _VSWHERE="%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
@@ -294,16 +294,6 @@ if %__EnforcePgo%==1 (
     )
 )
 
-REM Determine if this is a cross-arch build
-
-if /i "%__BuildArch%"=="arm64" (
-    set __DoCrossArchBuild=1
-    )
-
-if /i "%__BuildArch%"=="arm" (
-    set __DoCrossArchBuild=1
-    )
-
 :: Set the remaining variables based upon the determined build configuration
 set "__BinDir=%__RootBinDir%\Product\%__BuildOS%.%__BuildArch%.%__BuildType%"
 set "__IntermediatesDir=%__RootBinDir%\obj\%__BuildOS%.%__BuildArch%.%__BuildType%"
@@ -524,6 +514,14 @@ REM ===
 REM === Build Cross-Architecture Native Components (if applicable)
 REM ===
 REM =========================================================================================
+
+if /i "%__BuildArch%"=="arm64" (
+    set __DoCrossArchBuild=1
+    )
+
+if /i "%__BuildArch%"=="arm" (
+    set __DoCrossArchBuild=1
+    )
 
 if /i "%__DoCrossArchBuild%"=="1" (
     REM Scope environment changes start {
