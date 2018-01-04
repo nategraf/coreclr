@@ -5,6 +5,9 @@
 using System.Diagnostics;
 using System.Runtime;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+
+using Internal.Runtime.CompilerServices;
 
 #if BIT64
 using nuint = System.UInt64;
@@ -72,7 +75,7 @@ namespace System
                 ThrowHelper.ThrowInvalidTypeWithPointersNotSupported(typeof(T));
 
             return new Span<byte>(
-                ref Unsafe.As<T, byte>(ref source.DangerousGetPinnableReference()),
+                ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(source)),
                 checked(source.Length * Unsafe.SizeOf<T>()));
         }
 
@@ -92,7 +95,7 @@ namespace System
                 ThrowHelper.ThrowInvalidTypeWithPointersNotSupported(typeof(T));
 
             return new ReadOnlySpan<byte>(
-                ref Unsafe.As<T, byte>(ref source.DangerousGetPinnableReference()),
+                ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(source)),
                 checked(source.Length * Unsafe.SizeOf<T>()));
         }
 
@@ -144,7 +147,7 @@ namespace System
                 ThrowHelper.ThrowInvalidTypeWithPointersNotSupported(typeof(TTo));
 
             return new ReadOnlySpan<TTo>(
-                ref Unsafe.As<TFrom, TTo>(ref source.DangerousGetPinnableReference()),
+                ref Unsafe.As<TFrom, TTo>(ref MemoryMarshal.GetReference(source)),
                 checked((int)((long)source.Length * Unsafe.SizeOf<TFrom>() / Unsafe.SizeOf<TTo>())));
         }
 

@@ -362,7 +362,7 @@ void Lowering::LowerBlockStore(GenTreeBlk* blkNode)
             // we should unroll the loop to improve CQ.
             // For reference see the code in lowerxarch.cpp.
 
-            if ((size != 0) && (size <= INITBLK_UNROLL_LIMIT))
+            if ((size != 0) && (size <= CPBLK_UNROLL_LIMIT))
             {
                 blkNode->gtBlkOpKind = GenTreeBlk::BlkOpKindUnroll;
             }
@@ -785,18 +785,26 @@ void Lowering::ContainCheckSIMD(GenTreeSIMD* simdNode)
 
         case SIMDIntrinsicGetItem:
         {
-            // TODO-ARM64-CQ Support containing op1 memory ops
-
             // This implements get_Item method. The sources are:
             //  - the source SIMD struct
             //  - index (which element to get)
             // The result is baseType of SIMD struct.
+            op1 = simdNode->gtOp.gtOp1;
             op2 = simdNode->gtOp.gtOp2;
 
             // If the index is a constant, mark it as contained.
             if (op2->IsCnsIntOrI())
             {
                 MakeSrcContained(simdNode, op2);
+            }
+
+            if (IsContainableMemoryOp(op1))
+            {
+                MakeSrcContained(simdNode, op1);
+                if (op1->OperGet() == GT_IND)
+                {
+                    op1->AsIndir()->Addr()->ClearContained();
+                }
             }
             break;
         }

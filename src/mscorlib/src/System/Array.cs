@@ -19,6 +19,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.ConstrainedExecution;
 using System.Runtime.Versioning;
 using System.Security;
+using Internal.Runtime.CompilerServices;
 
 namespace System
 {
@@ -1915,7 +1916,7 @@ namespace System
 
                 try
                 {
-                    IntroSort(left, length + left - 1, 2 * IntrospectiveSortUtilities.FloorLog2(keys.Length));
+                    IntroSort(left, length + left - 1, 2 * IntrospectiveSortUtilities.FloorLog2PlusOne(keys.Length));
                 }
                 catch (IndexOutOfRangeException)
                 {
@@ -2121,7 +2122,7 @@ namespace System
 
                 try
                 {
-                    IntroSort(left, length + left - 1, 2 * IntrospectiveSortUtilities.FloorLog2(keys.Length));
+                    IntroSort(left, length + left - 1, 2 * IntrospectiveSortUtilities.FloorLog2PlusOne(keys.Length));
                 }
                 catch (IndexOutOfRangeException)
                 {

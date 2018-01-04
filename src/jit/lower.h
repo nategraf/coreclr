@@ -137,7 +137,11 @@ private:
     // Call Lowering
     // ------------------------------
     void LowerCall(GenTree* call);
-    GenTree* LowerCompare(GenTree* tree);
+#ifndef _TARGET_64BIT_
+    GenTree* DecomposeLongCompare(GenTree* cmp);
+#endif
+    GenTree* OptimizeConstCompare(GenTree* cmp);
+    GenTree* LowerCompare(GenTree* cmp);
     GenTree* LowerJTrue(GenTreeOp* jtrue);
     void LowerJmpMethod(GenTree* jmp);
     void LowerRet(GenTree* ret);
@@ -155,7 +159,7 @@ private:
     GenTree* NewPutArg(GenTreeCall* call, GenTreePtr arg, fgArgTabEntryPtr info, var_types type);
     void LowerArg(GenTreeCall* call, GenTreePtr* ppTree);
 #ifdef _TARGET_ARMARCH_
-    GenTree* LowerFloatArg(GenTree* arg, fgArgTabEntry* info);
+    GenTree* LowerFloatArg(GenTree** pArg, fgArgTabEntry* info);
     GenTree* LowerFloatArgReg(GenTree* arg, regNumber regNum);
 #endif
 
@@ -220,22 +224,6 @@ private:
     bool IsCallTargetInRange(void* addr);
 
 #if defined(_TARGET_XARCH_)
-    //----------------------------------------------------------------------
-    // SetRegOptional - sets a bit to indicate to LSRA that register
-    // for a given tree node is optional for codegen purpose.  If no
-    // register is allocated to such a tree node, its parent node treats
-    // it as a contained memory operand during codegen.
-    //
-    // Arguments:
-    //    tree    -   GenTree node
-    //
-    // Returns
-    //    None
-    void SetRegOptional(GenTree* tree)
-    {
-        tree->gtLsraInfo.regOptional = true;
-    }
-
     GenTree* PreferredRegOptionalOperand(GenTree* tree);
 
     // ------------------------------------------------------------------
@@ -269,13 +257,18 @@ private:
         const bool op1Legal = tree->OperIsCommutative() && (operatorSize == genTypeSize(op1->TypeGet()));
         const bool op2Legal = operatorSize == genTypeSize(op2->TypeGet());
 
+        GenTree* regOptionalOperand = nullptr;
         if (op1Legal)
         {
-            SetRegOptional(op2Legal ? PreferredRegOptionalOperand(tree) : op1);
+            regOptionalOperand = op2Legal ? PreferredRegOptionalOperand(tree) : op1;
         }
         else if (op2Legal)
         {
-            SetRegOptional(op2);
+            regOptionalOperand = op2;
+        }
+        if (regOptionalOperand != nullptr)
+        {
+            regOptionalOperand->SetRegOptional();
         }
     }
 #endif // defined(_TARGET_XARCH_)
